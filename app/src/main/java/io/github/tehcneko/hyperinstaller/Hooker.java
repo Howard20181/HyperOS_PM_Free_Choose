@@ -5,6 +5,8 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import java.lang.reflect.Field;
+
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.annotations.AfterInvocation;
@@ -15,6 +17,7 @@ import io.github.libxposed.api.annotations.XposedHooker;
 public class Hooker extends XposedModule {
 
     private static final String TAG = "HyperInstaller";
+    private static Field fIsInternationalBuildBoolean;
 
     public Hooker(@NonNull XposedInterface base, @NonNull ModuleLoadedParam param) {
         super(base, param);
@@ -22,13 +25,21 @@ public class Hooker extends XposedModule {
 
     @Override
     public void onSystemServerLoaded(@NonNull SystemServerLoadedParam param) {
+        var classLoader = param.getClassLoader();
         try {
-            hookPackageManagerServiceImpl(param.getClassLoader());
+            var PackageManagerServiceStubClass = classLoader.loadClass("com.android.server.pm.PackageManagerServiceStub");
+            fIsInternationalBuildBoolean = PackageManagerServiceStubClass.getDeclaredField("IS_INTERNATIONAL_BUILD");
+            fIsInternationalBuildBoolean.setAccessible(true);
+        } catch (ClassNotFoundException | NoSuchFieldException e) {
+            log("Failed to find IS_INTERNATIONAL_BUILD field", e);
+        }
+        try {
+            hookPackageManagerServiceImpl(classLoader);
         } catch (Throwable t) {
             log("Failed to hook PackageManagerServiceImpl", t);
         }
         try {
-            hookIsCTS(param.getClassLoader());
+            hookIsCTS(classLoader);
         } catch (Throwable t) {
             log("Failed to hook isCTS", t);
         }
@@ -44,6 +55,9 @@ public class Hooker extends XposedModule {
                     "assertValidApkAndInstaller".equals(name)) {
                 Log.d(TAG, "hooking method " + name);
                 hook(method, PackageManagerServiceImplHooker.class);
+                if ("hookChooseBestActivity".equals(name)) {
+                    hook(method, ChooseBestActivityHooker.class);
+                }
                 deoptimize(method);
             }
         }
@@ -81,4 +95,21 @@ public class Hooker extends XposedModule {
         }
     }
 
+    @XposedHooker
+    private static class ChooseBestActivityHooker implements Hooker {
+
+        @BeforeInvocation
+        public static void before(@NonNull BeforeHookCallback callback) throws Throwable {
+            if (fIsInternationalBuildBoolean != null) {
+                fIsInternationalBuildBoolean.setBoolean(null, true);
+            }
+        }
+
+        @AfterInvocation
+        public static void after(@NonNull AfterHookCallback callback) throws Throwable {
+            if (fIsInternationalBuildBoolean != null) {
+                fIsInternationalBuildBoolean.setBoolean(null, false);
+            }
+        }
+    }
 }
