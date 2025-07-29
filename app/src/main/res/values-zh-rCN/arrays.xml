@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="package_installer_unlock_entries" >
+        <item>不修改</item>
+        <item>任意</item>
+        <item>自定义</item>
+    </string-array>
+</resources>

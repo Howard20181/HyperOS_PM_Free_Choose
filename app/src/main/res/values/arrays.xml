@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="package_installer_unlock_entries" >
+        <item>Unchanged</item>
+        <item>Any</item>
+        <item>Custom</item>
+    </string-array>
+    <string-array name="package_installer_unlock_values" >
+        <item>off</item>
+        <item>any</item>
+        <item>custom</item>
+    </string-array>
+</resources>

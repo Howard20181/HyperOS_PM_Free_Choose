@@ -3,10 +3,21 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application
+        android:name=".App"
         android:allowBackup="true"
-        android:label="@string/app_name"
         android:description="@string/xposed_description"
+        android:label="@string/app_name"
         android:supportsRtl="true"
-        tools:ignore="AllowBackup,MissingApplicationIcon" />
+        android:theme="@style/AppTheme"
+        tools:ignore="AllowBackup,MissingApplicationIcon">
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
+            </intent-filter>
+        </activity>
+    </application>
 
 </manifest>
