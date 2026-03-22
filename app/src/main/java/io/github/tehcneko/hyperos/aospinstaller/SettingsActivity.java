@@ -1,16 +1,21 @@
 package io.github.tehcneko.hyperos.aospinstaller;
 
 import android.app.Activity;
-import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.preference.EditTextPreference;
+import android.preference.ListPreference;
 import android.preference.PreferenceFragment;
 
 import androidx.annotation.Nullable;
+
+import io.github.libxposed.service.XposedService;
 
 public class SettingsActivity extends Activity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
         setContentView(R.layout.settiings);
         if (savedInstanceState == null) {
             getFragmentManager().beginTransaction()
@@ -18,77 +23,79 @@ public class SettingsActivity extends Activity {
         }
     }
 
-    public static class SettingsFragment extends PreferenceFragment implements SharedPreferences.OnSharedPreferenceChangeListener {
-        private void processServiceBind() {
-            var unlockPref = findPreference("package_installer_unlock");
-            var customNamePref = findPreference("package_installer_custom_package_name");
-            if (App.mService != null) {
-                var remotePrefs = App.mService.getRemotePreferences("conf");
-                var localPrefs = getPreferenceManager().getSharedPreferences();
-                SharedPreferences.Editor editor = localPrefs.edit();
-                for (String key : remotePrefs.getAll().keySet()) {
-                    Object value = remotePrefs.getAll().get(key);
-                    if (value instanceof String) {
-                        editor.putString(key, (String) value);
-                    }
-                }
-                editor.apply();
-                if (unlockPref != null) {
-                    unlockPref.setEnabled(true);
-                }
-                if ("custom".equals(remotePrefs.getString("package_installer_unlock", "off"))) {
-                    if (customNamePref != null) {
-                        customNamePref.setEnabled(true);
-                    }
-                }
-            } else {
-                if (unlockPref != null) {
-                    unlockPref.setEnabled(false);
-                }
-                if (customNamePref != null) {
-                    customNamePref.setEnabled(false);
-                }
+    public static class SettingsFragment extends PreferenceFragment implements App.ServiceStateListener {
+        ListPreference unlockPref;
+        EditTextPreference customNamePref;
+        private XposedService mService;
+
+        private void applyServiceStateToPrefs(XposedService service) {
+            this.mService = service;
+            if (unlockPref == null || customNamePref == null) {
+                return;
             }
+
+            if (service == null) {
+                unlockPref.setEnabled(false);
+                customNamePref.setEnabled(false);
+                return;
+            }
+
+            var remotePrefs = service.getRemotePreferences("conf");
+            unlockPref.setValue(remotePrefs.getString("package_installer_unlock", "off"));
+            unlockPref.setEnabled(true);
+            customNamePref.setText(remotePrefs.getString("package_installer_custom_package_name", ""));
+            customNamePref.setEnabled("custom".equals(unlockPref.getValue()));
+        }
+
+        private void pushRemoteConfig(String changedKey, String newValue) {
+            if (mService == null) return;
+
+            var remotePrefs = mService.getRemotePreferences("conf");
+
+            remotePrefs.edit()
+                    .putString(changedKey, newValue)
+                    .apply();
         }
 
         @Override
         public void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             addPreferencesFromResource(R.xml.preferences);
-        }
+            unlockPref = (ListPreference) findPreference("package_installer_unlock");
+            customNamePref = (EditTextPreference) findPreference("package_installer_custom_package_name");
+            if (unlockPref != null) {
+                unlockPref.setOnPreferenceChangeListener((preference, newValue) -> {
+                    String value = String.valueOf(newValue).trim();
+                    customNamePref.setEnabled("custom".equals(value));
+                    pushRemoteConfig("package_installer_unlock", value);
+                    return true;
+                });
 
-        @Override
-        public void onResume() {
-            super.onResume();
-            getPreferenceManager().getSharedPreferences()
-                    .registerOnSharedPreferenceChangeListener(this);
-            processServiceBind();
-        }
-
-        @Override
-        public void onPause() {
-            super.onPause();
-            getPreferenceManager().getSharedPreferences()
-                    .unregisterOnSharedPreferenceChangeListener(this);
-        }
-
-        @Override
-        public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, @Nullable String key) {
-            if (App.mService != null && key != null) {
-                var perf = App.mService.getRemotePreferences("conf");
-                if ("package_installer_unlock".equals(key)) {
-                    var customNamePref = findPreference("package_installer_custom_package_name");
-                    if (customNamePref != null) {
-                        customNamePref.setEnabled("custom".equals(sharedPreferences.getString(key, "off")));
-                    }
-                }
-                String value = sharedPreferences.getString(key, "");
-                if ("package_installer_custom_package_name".equals(key)) {
-                    value = value.trim();
-                    sharedPreferences.edit().putString(key, value).apply();
-                }
-                perf.edit().putString(key, value).apply();
             }
+            if (customNamePref != null) {
+                customNamePref.setOnPreferenceChangeListener((preference, newValue) -> {
+                    String value = String.valueOf(newValue).trim();
+                    pushRemoteConfig("package_installer_custom_package_name", value);
+                    return true;
+                });
+            }
+        }
+
+        @Override
+        public void onStart() {
+            super.onStart();
+            App.addServiceStateListener(this);
+        }
+
+        @Override
+        public void onStop() {
+            App.removeServiceStateListener(this);
+            super.onStop();
+        }
+
+        @Override
+        public void onServiceStateChanged(@Nullable XposedService service) {
+            applyServiceStateToPrefs(service);
         }
     }
 }

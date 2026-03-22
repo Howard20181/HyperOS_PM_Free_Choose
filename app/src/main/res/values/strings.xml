@@ -2,6 +2,5 @@
     <string name="app_name">AOSP Package Installer</string>
     <string name="xposed_description">Use AOSP package installer on Xiaomi Hyper OS or MIUI.</string>
     <string name="package_installer_unlock_title">Change Package Installer</string>
-    <string name="package_installer_unlock_summary">Makes the package installer changeable\nCurrent Value: %s</string>
     <string name="package_installer_custom_package_name_title">Custom package installer package name</string>
 </resources>

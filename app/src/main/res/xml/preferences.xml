@@ -6,8 +6,9 @@
         android:entries="@array/package_installer_unlock_entries"
         android:entryValues="@array/package_installer_unlock_values"
         android:key="package_installer_unlock"
+        android:persistent="false"
         android:shouldDisableView="true"
-        android:summary="@string/package_installer_unlock_summary"
+        android:summary="%s"
         android:title="@string/package_installer_unlock_title" />
     <EditTextPreference
         android:defaultValue=""
@@ -15,6 +16,7 @@
         android:enabled="false"
         android:inputType="text"
         android:key="package_installer_custom_package_name"
+        android:persistent="false"
         android:shouldDisableView="true"
         android:title="@string/package_installer_custom_package_name_title" />
 

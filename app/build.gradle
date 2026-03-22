@@ -4,7 +4,6 @@ plugins {
 
 android {
     compileSdk 36
-    buildToolsVersion "35.0.0"
 
     defaultConfig {
         applicationId "io.github.tehcneko.hyperos.aospinstaller"
@@ -48,8 +47,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
     }
 
     lint {
@@ -57,12 +56,12 @@ android {
     }
 
     dependenciesInfo.includeInApk false
+    enableKotlin = false
     namespace 'io.github.tehcneko.hyperos.aospinstaller'
 }
 
 dependencies {
     compileOnly 'androidx.annotation:annotation:1.9.1'
-    compileOnly 'io.github.libxposed:api:100'
-    compileOnly project(":libxposed-compat")
-    implementation 'io.github.libxposed:service:100-1.0.0'
+    compileOnly 'io.github.libxposed:api:101.0.0'
+    implementation 'io.github.libxposed:service:101.0.0'
 }
