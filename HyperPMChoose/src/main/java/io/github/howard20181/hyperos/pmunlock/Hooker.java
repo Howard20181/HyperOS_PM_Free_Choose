@@ -9,6 +9,8 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import java.lang.reflect.Field;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.github.libxposed.api.XposedModule;
@@ -17,25 +19,19 @@ import io.github.libxposed.api.XposedModule;
 public class Hooker extends XposedModule {
 
     private static final String TAG = "HyperInstaller";
-    public static boolean fakeCTS = false;
 
     @Override
     public void onSystemServerStarting(@NonNull SystemServerStartingParam param) {
         var classLoader = param.getClassLoader();
-
         try {
             hookPackageManagerServiceImpl(classLoader);
         } catch (Throwable t) {
             log(Log.ERROR, TAG, "Failed to hook PackageManagerServiceImpl", t);
         }
-        try {
-            hookIsCTS(classLoader);
-        } catch (Throwable t) {
-            log(Log.ERROR, TAG, "Failed to hook isCTS", t);
-        }
     }
 
-    private void hookPackageManagerServiceImpl(ClassLoader classLoader) throws ClassNotFoundException, NoSuchFieldException {
+    private void hookPackageManagerServiceImpl(ClassLoader classLoader) throws ClassNotFoundException {
+        AtomicBoolean fakeCTS = new AtomicBoolean(false);
         var packageManagerServiceImpl = classLoader.loadClass("com.android.server.pm.PackageManagerServiceImpl");
         var methods = packageManagerServiceImpl.getDeclaredMethods();
         for (var method : methods) {
@@ -45,11 +41,11 @@ public class Hooker extends XposedModule {
                     "assertValidApkAndInstaller".equals(name)) {
                 Log.d(TAG, "hooking method " + name);
                 hook(method).intercept(chain -> {
-                    fakeCTS = true;
+                    fakeCTS.set(true);
                     try {
                         return chain.proceed();
                     } finally {
-                        fakeCTS = false;
+                        fakeCTS.set(false);
                     }
                 });
                 if ("hookChooseBestActivity".equals(name)) {
@@ -58,9 +54,13 @@ public class Hooker extends XposedModule {
                     var customPackageInstallerName = new AtomicReference<>(prefs.getString("package_installer_custom_package_name", "").trim());
                     var mCurrentPackageInstaller = new AtomicReference<>("");
                     var unlockMarket = new AtomicReference<>(prefs.getBoolean("unlock_choose_market_app", false));
-                    var PackageManagerServiceImplClass = classLoader.loadClass("com.android.server.pm.PackageManagerServiceImpl");
-                    var fCurrentPackageInstaller = PackageManagerServiceImplClass.getDeclaredField("mCurrentPackageInstaller");
-                    fCurrentPackageInstaller.setAccessible(true);
+                    Field fCurrentPackageInstaller = null;
+                    try {
+                        fCurrentPackageInstaller = packageManagerServiceImpl.getDeclaredField("mCurrentPackageInstaller");
+                        fCurrentPackageInstaller.setAccessible(true);
+                    } catch (Exception e) {
+                        log(Log.ERROR, TAG, "Failed to find mCurrentPackageInstaller field", e);
+                    }
                     prefs.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> {
                         if ("package_installer_unlock".equals(key)) {
                             replacePackageInstaller.set(sharedPreferences.getString(key, "off"));
@@ -70,17 +70,19 @@ public class Hooker extends XposedModule {
                             unlockMarket.set(sharedPreferences.getBoolean(key, false));
                         }
                     });
+                    Field finalFCurrentPackageInstaller = fCurrentPackageInstaller;
                     hook(method).intercept(chain -> {
                         try {
-                            var args = chain.getArgs();
-                            if (args.get(0) instanceof Intent intent)
-                                if (PACKAGE_MIME_TYPE.equals(intent.getType()) && Intent.ACTION_VIEW.equals(intent.getAction())) {
+                            if (chain.getArg(0) instanceof Intent intent)
+                                if (finalFCurrentPackageInstaller != null
+                                        && PACKAGE_MIME_TYPE.equals(intent.getType())
+                                        && Intent.ACTION_VIEW.equals(intent.getAction())) {
                                     switch (replacePackageInstaller.get()) {
                                         case "any":
-                                            if (args.get(5) instanceof ResolveInfo ri) {
+                                            if (chain.getArg(5) instanceof ResolveInfo ri) {
                                                 return ri;
                                             } else {
-                                                for (var arg : args) {
+                                                for (var arg : chain.getArgs()) {
                                                     if (arg instanceof ResolveInfo ri) {
                                                         return ri;
                                                     }
@@ -90,22 +92,27 @@ public class Hooker extends XposedModule {
                                         case "custom":
                                             if (!customPackageInstallerName.get().isEmpty()) {
                                                 var thisObject = chain.getThisObject();
-                                                if (mCurrentPackageInstaller.get().isEmpty() && fCurrentPackageInstaller.get(thisObject) instanceof String currentPackageInstaller) {
+                                                if (mCurrentPackageInstaller.get().isEmpty()
+                                                        && finalFCurrentPackageInstaller.get(thisObject) instanceof String currentPackageInstaller) {
                                                     mCurrentPackageInstaller.compareAndSet("", currentPackageInstaller);
                                                 }
-                                                fCurrentPackageInstaller.set(thisObject, customPackageInstallerName.get());
+                                                finalFCurrentPackageInstaller.set(thisObject, customPackageInstallerName.get());
                                             }
                                             break;
                                     }
                                 } else if (unlockMarket.get()) {
                                     String scheme = intent.getScheme();
                                     String host = intent.getData() != null ? intent.getData().getHost() : null;
-                                    if (scheme != null && ((scheme.equals("mimarket") || scheme.equals("market")) && Intent.ACTION_VIEW.equals(intent.getAction()) && host != null && (host.equals("details") || host.equals("search")))) {
+                                    if (scheme != null && ((scheme.equals("mimarket")
+                                            || scheme.equals("market"))
+                                            && Intent.ACTION_VIEW.equals(intent.getAction())
+                                            && host != null && (host.equals("details")
+                                            || host.equals("search")))) {
                                         var uri = intent.getData();
                                         var uriBuilder = uri.buildUpon()
                                                 .scheme("market");
                                         intent.setData(uriBuilder.build());
-                                        if (args.get(5) instanceof ResolveInfo ri) {
+                                        if (chain.getArg(5) instanceof ResolveInfo ri) {
                                             return ri;
                                         }
                                     }
@@ -115,9 +122,10 @@ public class Hooker extends XposedModule {
                             if ("custom".equals(replacePackageInstaller.get())
                                     && !mCurrentPackageInstaller.get().isEmpty()
                                     && chain.getArg(0) instanceof Intent intent) {
-                                if (PACKAGE_MIME_TYPE.equals(intent.getType()) && Intent.ACTION_VIEW.equals(intent.getAction())) {
-                                    var thisObject = chain.getThisObject();
-                                    fCurrentPackageInstaller.set(thisObject, mCurrentPackageInstaller.get());
+                                if (finalFCurrentPackageInstaller != null
+                                        && PACKAGE_MIME_TYPE.equals(intent.getType())
+                                        && Intent.ACTION_VIEW.equals(intent.getAction())) {
+                                    finalFCurrentPackageInstaller.set(chain.getThisObject(), mCurrentPackageInstaller.get());
                                 }
                             }
                         }
@@ -126,16 +134,16 @@ public class Hooker extends XposedModule {
                 deoptimize(method);
             }
         }
-    }
-
-    private void hookIsCTS(ClassLoader classLoader) throws NoSuchMethodException, ClassNotFoundException {
-        var packageManagerServiceImpl = classLoader.loadClass("com.android.server.pm.PackageManagerServiceImpl");
-        var isCTSMethod = packageManagerServiceImpl.getDeclaredMethod("isCTS");
-        hook(isCTSMethod).intercept(chain -> {
-            if (fakeCTS) {
-                return true;
-            }
-            return chain.proceed();
-        });
+        try {
+            var isCTSMethod = packageManagerServiceImpl.getDeclaredMethod("isCTS");
+            hook(isCTSMethod).intercept(chain -> {
+                if (fakeCTS.get()) {
+                    return true;
+                }
+                return chain.proceed();
+            });
+        } catch (Exception e) {
+            log(Log.ERROR, TAG, "Failed to hook isCTS", e);
+        }
     }
 }
