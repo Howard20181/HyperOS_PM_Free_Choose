@@ -9,7 +9,6 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.github.libxposed.api.XposedModule;
@@ -19,18 +18,11 @@ public class Hooker extends XposedModule {
 
     private static final String TAG = "HyperInstaller";
     public static boolean fakeCTS = false;
-    private static Field fCurrentPackageInstaller;
 
     @Override
     public void onSystemServerStarting(@NonNull SystemServerStartingParam param) {
         var classLoader = param.getClassLoader();
-        try {
-            var PackageManagerServiceImplClass = classLoader.loadClass("com.android.server.pm.PackageManagerServiceImpl");
-            fCurrentPackageInstaller = PackageManagerServiceImplClass.getDeclaredField("mCurrentPackageInstaller");
-            fCurrentPackageInstaller.setAccessible(true);
-        } catch (ClassNotFoundException | NoSuchFieldException e) {
-            log(Log.ERROR, TAG, "Failed to find mCurrentPackageInstaller field on PackageManagerServiceImpl", e);
-        }
+
         try {
             hookPackageManagerServiceImpl(classLoader);
         } catch (Throwable t) {
@@ -43,7 +35,7 @@ public class Hooker extends XposedModule {
         }
     }
 
-    private void hookPackageManagerServiceImpl(ClassLoader classLoader) throws ClassNotFoundException {
+    private void hookPackageManagerServiceImpl(ClassLoader classLoader) throws ClassNotFoundException, NoSuchFieldException {
         var packageManagerServiceImpl = classLoader.loadClass("com.android.server.pm.PackageManagerServiceImpl");
         var methods = packageManagerServiceImpl.getDeclaredMethods();
         for (var method : methods) {
@@ -62,10 +54,13 @@ public class Hooker extends XposedModule {
                 });
                 if ("hookChooseBestActivity".equals(name)) {
                     var prefs = getRemotePreferences("conf");
-                    AtomicReference<String> replacePackageInstaller = new AtomicReference<>(prefs.getString("package_installer_unlock", "off"));
-                    AtomicReference<String> customPackageInstallerName = new AtomicReference<>(prefs.getString("package_installer_custom_package_name", "").trim());
-                    AtomicReference<String> mCurrentPackageInstaller = new AtomicReference<>("");
-                    AtomicReference<Boolean> unlockMarket = new AtomicReference<>(prefs.getBoolean("unlock_choose_market_app", false));
+                    var replacePackageInstaller = new AtomicReference<>(prefs.getString("package_installer_unlock", "off"));
+                    var customPackageInstallerName = new AtomicReference<>(prefs.getString("package_installer_custom_package_name", "").trim());
+                    var mCurrentPackageInstaller = new AtomicReference<>("");
+                    var unlockMarket = new AtomicReference<>(prefs.getBoolean("unlock_choose_market_app", false));
+                    var PackageManagerServiceImplClass = classLoader.loadClass("com.android.server.pm.PackageManagerServiceImpl");
+                    var fCurrentPackageInstaller = PackageManagerServiceImplClass.getDeclaredField("mCurrentPackageInstaller");
+                    fCurrentPackageInstaller.setAccessible(true);
                     prefs.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> {
                         if ("package_installer_unlock".equals(key)) {
                             replacePackageInstaller.set(sharedPreferences.getString(key, "off"));
@@ -79,7 +74,7 @@ public class Hooker extends XposedModule {
                         try {
                             var args = chain.getArgs();
                             if (args.get(0) instanceof Intent intent)
-                                if (PACKAGE_MIME_TYPE.equals(intent.getType()) && "android.intent.action.VIEW".equals(intent.getAction())) {
+                                if (PACKAGE_MIME_TYPE.equals(intent.getType()) && Intent.ACTION_VIEW.equals(intent.getAction())) {
                                     switch (replacePackageInstaller.get()) {
                                         case "any":
                                             if (args.get(5) instanceof ResolveInfo ri) {
@@ -95,7 +90,9 @@ public class Hooker extends XposedModule {
                                         case "custom":
                                             if (!customPackageInstallerName.get().isEmpty()) {
                                                 var thisObject = chain.getThisObject();
-                                                mCurrentPackageInstaller.set((String) fCurrentPackageInstaller.get(thisObject));
+                                                if (mCurrentPackageInstaller.get().isEmpty() && fCurrentPackageInstaller.get(thisObject) instanceof String currentPackageInstaller) {
+                                                    mCurrentPackageInstaller.compareAndSet("", currentPackageInstaller);
+                                                }
                                                 fCurrentPackageInstaller.set(thisObject, customPackageInstallerName.get());
                                             }
                                             break;
@@ -103,7 +100,7 @@ public class Hooker extends XposedModule {
                                 } else if (unlockMarket.get()) {
                                     String scheme = intent.getScheme();
                                     String host = intent.getData() != null ? intent.getData().getHost() : null;
-                                    if (scheme != null && ((scheme.equals("mimarket") || scheme.equals("market")) && "android.intent.action.VIEW".equals(intent.getAction()) && host != null && (host.equals("details") || host.equals("search")))) {
+                                    if (scheme != null && ((scheme.equals("mimarket") || scheme.equals("market")) && Intent.ACTION_VIEW.equals(intent.getAction()) && host != null && (host.equals("details") || host.equals("search")))) {
                                         var uri = intent.getData();
                                         var uriBuilder = uri.buildUpon()
                                                 .scheme("market");
@@ -115,8 +112,10 @@ public class Hooker extends XposedModule {
                                 }
                             return chain.proceed();
                         } finally {
-                            if ("custom".equals(replacePackageInstaller.get()) && chain.getArg(0) instanceof Intent intent) {
-                                if (PACKAGE_MIME_TYPE.equals(intent.getType()) && "android.intent.action.VIEW".equals(intent.getAction())) {
+                            if ("custom".equals(replacePackageInstaller.get())
+                                    && !mCurrentPackageInstaller.get().isEmpty()
+                                    && chain.getArg(0) instanceof Intent intent) {
+                                if (PACKAGE_MIME_TYPE.equals(intent.getType()) && Intent.ACTION_VIEW.equals(intent.getAction())) {
                                     var thisObject = chain.getThisObject();
                                     fCurrentPackageInstaller.set(thisObject, mCurrentPackageInstaller.get());
                                 }
