@@ -21,7 +21,7 @@
     </application>
     <queries>
         <intent>
-            <action android:name="android.intent.action.VIEW" />
+            <action android:name="android.intent.action.INSTALL_PACKAGE" />
             <data android:mimeType="application/vnd.android.package-archive" />
         </intent>
     </queries>
