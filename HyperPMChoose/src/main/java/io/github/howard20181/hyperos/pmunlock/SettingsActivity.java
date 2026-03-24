@@ -22,7 +22,7 @@ public class SettingsActivity extends Activity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
-        setContentView(R.layout.settiings);
+        setContentView(R.layout.settings);
         if (savedInstanceState == null) {
             getFragmentManager().beginTransaction()
                     .add(R.id.fragment_container, new SettingsFragment()).commit();
