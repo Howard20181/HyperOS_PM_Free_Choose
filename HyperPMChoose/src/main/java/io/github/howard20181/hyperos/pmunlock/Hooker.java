@@ -13,6 +13,7 @@ import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 
 @SuppressLint("PrivateApi")
@@ -40,14 +41,16 @@ public class Hooker extends XposedModule {
                     "updateDefaultPkgInstallerLocked".equals(name) ||
                     "assertValidApkAndInstaller".equals(name)) {
                 Log.d(TAG, "hooking method " + name);
-                hook(method).intercept(chain -> {
-                    fakeCTS.set(true);
-                    try {
-                        return chain.proceed();
-                    } finally {
-                        fakeCTS.set(false);
-                    }
-                });
+                hook(method)
+                        .setPriority(XposedInterface.PRIORITY_DEFAULT + 1)
+                        .intercept(chain -> {
+                            fakeCTS.set(true);
+                            try {
+                                return chain.proceed();
+                            } finally {
+                                fakeCTS.set(false);
+                            }
+                        });
                 if ("hookChooseBestActivity".equals(name)) {
                     var prefs = getRemotePreferences("conf");
                     var replacePackageInstaller = new AtomicReference<>(prefs.getString("package_installer_unlock", "off"));
