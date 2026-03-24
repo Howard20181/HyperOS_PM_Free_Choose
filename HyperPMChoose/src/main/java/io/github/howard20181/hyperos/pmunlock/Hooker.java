@@ -76,10 +76,11 @@ public class Hooker extends XposedModule {
                 Field finalFCurrentPackageInstaller = fCurrentPackageInstaller;
                 hook(method).intercept(chain -> {
                     try {
-                        if (chain.getArg(0) instanceof Intent intent)
+                        if (chain.getArg(0) instanceof Intent intent) {
                             if (finalFCurrentPackageInstaller != null
                                     && PACKAGE_MIME_TYPE.equals(intent.getType())
                                     && Intent.ACTION_VIEW.equals(intent.getAction())) {
+                                fakeCTS.set(true);
                                 switch (replacePackageInstaller.get()) {
                                     case "any":
                                         if (chain.getArg(5) instanceof ResolveInfo ri) {
@@ -120,7 +121,7 @@ public class Hooker extends XposedModule {
                                     }
                                 }
                             }
-                        fakeCTS.set(true);
+                        }
                         return chain.proceed();
                     } finally {
                         if ("custom".equals(replacePackageInstaller.get())
