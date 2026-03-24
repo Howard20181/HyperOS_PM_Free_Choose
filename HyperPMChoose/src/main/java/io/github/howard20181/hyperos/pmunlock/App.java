@@ -1,4 +1,4 @@
-package io.github.tehcneko.hyperos.aospinstaller;
+package io.github.howard20181.hyperos.pmunlock;
 
 import android.app.Application;
 import android.os.Handler;
@@ -14,6 +14,7 @@ import io.github.libxposed.service.XposedService;
 import io.github.libxposed.service.XposedServiceHelper;
 
 public class App extends Application implements XposedServiceHelper.OnServiceListener {
+    public static final String PACKAGE_MIME_TYPE = "application/vnd.android.package-archive";
     private static XposedService mService = null;
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
     private static final Set<ServiceStateListener> SERVICE_STATE_LISTENERS = new CopyOnWriteArraySet<>();

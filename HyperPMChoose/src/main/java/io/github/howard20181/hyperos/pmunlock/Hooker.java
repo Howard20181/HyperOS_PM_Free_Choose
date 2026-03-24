@@ -1,4 +1,6 @@
-package io.github.tehcneko.hyperinstaller;
+package io.github.howard20181.hyperos.pmunlock;
+
+import static io.github.howard20181.hyperos.pmunlock.App.PACKAGE_MIME_TYPE;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
@@ -8,6 +10,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import java.lang.reflect.Field;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.github.libxposed.api.XposedModule;
 
@@ -15,12 +18,8 @@ import io.github.libxposed.api.XposedModule;
 public class Hooker extends XposedModule {
 
     private static final String TAG = "HyperInstaller";
-    private static final String PACKAGE_MIME_TYPE = "application/vnd.android.package-archive";
     public static boolean fakeCTS = false;
     private static Field fCurrentPackageInstaller;
-    private static String mCurrentPackageInstaller;
-    private static String replacePackageInstaller = "off";
-    private static String customPackageInstallerName = "";
 
     @Override
     public void onSystemServerStarting(@NonNull SystemServerStartingParam param) {
@@ -63,60 +62,63 @@ public class Hooker extends XposedModule {
                 });
                 if ("hookChooseBestActivity".equals(name)) {
                     var prefs = getRemotePreferences("conf");
-                    replacePackageInstaller = prefs.getString("package_installer_unlock", "off");
-                    customPackageInstallerName = prefs.getString("package_installer_custom_package_name", "").trim();
+                    AtomicReference<String> replacePackageInstaller = new AtomicReference<>(prefs.getString("package_installer_unlock", "off"));
+                    AtomicReference<String> customPackageInstallerName = new AtomicReference<>(prefs.getString("package_installer_custom_package_name", "").trim());
+                    AtomicReference<String> mCurrentPackageInstaller = new AtomicReference<>("");
+                    AtomicReference<Boolean> unlockMarket = new AtomicReference<>(prefs.getBoolean("unlock_choose_market_app", false));
                     prefs.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> {
                         if ("package_installer_unlock".equals(key)) {
-                            replacePackageInstaller = sharedPreferences.getString(key, "off");
+                            replacePackageInstaller.set(sharedPreferences.getString(key, "off"));
                         } else if ("package_installer_custom_package_name".equals(key)) {
-                            customPackageInstallerName = sharedPreferences.getString(key, "").trim();
+                            customPackageInstallerName.set(sharedPreferences.getString(key, "").trim());
+                        } else if ("unlock_choose_market_app".equals(key)) {
+                            unlockMarket.set(sharedPreferences.getBoolean(key, false));
                         }
                     });
                     hook(method).intercept(chain -> {
-
-                        var args = chain.getArgs();
-                        if (args.get(0) instanceof Intent intent)
-                            if (PACKAGE_MIME_TYPE.equals(intent.getType()) && "android.intent.action.VIEW".equals(intent.getAction())) {
-                                switch (replacePackageInstaller) {
-                                    case "any":
-                                        if (args.get(5) instanceof ResolveInfo ri) {
-                                            return ri;
-                                        } else {
-                                            for (var arg : args) {
-                                                if (arg instanceof ResolveInfo ri) {
-                                                    return ri;
+                        try {
+                            var args = chain.getArgs();
+                            if (args.get(0) instanceof Intent intent)
+                                if (PACKAGE_MIME_TYPE.equals(intent.getType()) && "android.intent.action.VIEW".equals(intent.getAction())) {
+                                    switch (replacePackageInstaller.get()) {
+                                        case "any":
+                                            if (args.get(5) instanceof ResolveInfo ri) {
+                                                return ri;
+                                            } else {
+                                                for (var arg : args) {
+                                                    if (arg instanceof ResolveInfo ri) {
+                                                        return ri;
+                                                    }
                                                 }
                                             }
+                                            break;
+                                        case "custom":
+                                            if (!customPackageInstallerName.get().isEmpty()) {
+                                                var thisObject = chain.getThisObject();
+                                                mCurrentPackageInstaller.set((String) fCurrentPackageInstaller.get(thisObject));
+                                                fCurrentPackageInstaller.set(thisObject, customPackageInstallerName);
+                                            }
+                                            break;
+                                    }
+                                } else if (unlockMarket.get()) {
+                                    String scheme = intent.getScheme();
+                                    String host = intent.getData() != null ? intent.getData().getHost() : null;
+                                    if (scheme != null && ((scheme.equals("mimarket") || scheme.equals("market")) && "android.intent.action.VIEW".equals(intent.getAction()) && host != null && (host.equals("details") || host.equals("search")))) {
+                                        var uri = intent.getData();
+                                        var uriBuilder = uri.buildUpon()
+                                                .scheme("market");
+                                        intent.setData(uriBuilder.build());
+                                        if (args.get(5) instanceof ResolveInfo ri) {
+                                            return ri;
                                         }
-                                        break;
-                                    case "custom":
-                                        if (!customPackageInstallerName.isEmpty()) {
-                                            var thisObject = chain.getThisObject();
-                                            mCurrentPackageInstaller = (String) fCurrentPackageInstaller.get(thisObject);
-                                            fCurrentPackageInstaller.set(thisObject, customPackageInstallerName);
-                                        }
-                                        break;
-                                }
-                            } else {
-                                String scheme = intent.getScheme();
-                                String host = intent.getData() != null ? intent.getData().getHost() : null;
-                                if (scheme != null && ((scheme.equals("mimarket") || scheme.equals("market")) && "android.intent.action.VIEW".equals(intent.getAction()) && host != null && (host.equals("details") || host.equals("search")))) {
-                                    var uri = intent.getData();
-                                    var uriBuilder = uri.buildUpon()
-                                            .scheme("market");
-                                    intent.setData(uriBuilder.build());
-                                    if (args.get(5) instanceof ResolveInfo ri) {
-                                        return ri;
                                     }
                                 }
-                            }
-                        try {
                             return chain.proceed();
                         } finally {
-                            if ("custom".equals(replacePackageInstaller) && chain.getArg(0) instanceof Intent intent) {
+                            if ("custom".equals(replacePackageInstaller.get()) && chain.getArg(0) instanceof Intent intent) {
                                 if (PACKAGE_MIME_TYPE.equals(intent.getType()) && "android.intent.action.VIEW".equals(intent.getAction())) {
                                     var thisObject = chain.getThisObject();
-                                    fCurrentPackageInstaller.set(thisObject, mCurrentPackageInstaller);
+                                    fCurrentPackageInstaller.set(thisObject, mCurrentPackageInstaller.get());
                                 }
                             }
                         }

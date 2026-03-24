@@ -10,14 +10,19 @@
         android:shouldDisableView="true"
         android:summary="%s"
         android:title="@string/package_installer_unlock_title" />
-    <EditTextPreference
+    <ListPreference
         android:defaultValue=""
         android:dialogTitle="@string/package_installer_custom_package_name_title"
         android:enabled="false"
-        android:inputType="text"
         android:key="package_installer_custom_package_name"
         android:persistent="false"
         android:shouldDisableView="true"
         android:title="@string/package_installer_custom_package_name_title" />
-
+    <SwitchPreference
+        android:defaultValue="false"
+        android:enabled="false"
+        android:key="unlock_choose_market_app"
+        android:persistent="false"
+        android:shouldDisableView="true"
+        android:title="@string/unlock_choose_market_app_title" />
 </PreferenceScreen>
