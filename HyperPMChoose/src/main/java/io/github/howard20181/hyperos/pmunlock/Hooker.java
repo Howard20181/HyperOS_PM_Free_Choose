@@ -29,7 +29,7 @@ public class Hooker extends XposedModule {
             fCurrentPackageInstaller = PackageManagerServiceImplClass.getDeclaredField("mCurrentPackageInstaller");
             fCurrentPackageInstaller.setAccessible(true);
         } catch (ClassNotFoundException | NoSuchFieldException e) {
-            log(Log.ERROR, TAG, "Failed to find IS_INTERNATIONAL_BUILD field", e);
+            log(Log.ERROR, TAG, "Failed to find mCurrentPackageInstaller field on PackageManagerServiceImpl", e);
         }
         try {
             hookPackageManagerServiceImpl(classLoader);
