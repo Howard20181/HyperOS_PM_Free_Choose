@@ -96,7 +96,7 @@ public class Hooker extends XposedModule {
                                             if (!customPackageInstallerName.get().isEmpty()) {
                                                 var thisObject = chain.getThisObject();
                                                 mCurrentPackageInstaller.set((String) fCurrentPackageInstaller.get(thisObject));
-                                                fCurrentPackageInstaller.set(thisObject, customPackageInstallerName);
+                                                fCurrentPackageInstaller.set(thisObject, customPackageInstallerName.get());
                                             }
                                             break;
                                     }
