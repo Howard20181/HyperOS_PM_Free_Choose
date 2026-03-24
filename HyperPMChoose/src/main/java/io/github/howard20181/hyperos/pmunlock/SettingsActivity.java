@@ -1,11 +1,11 @@
 package io.github.howard20181.hyperos.pmunlock;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.preference.ListPreference;
 import android.preference.PreferenceFragment;
@@ -13,6 +13,8 @@ import android.preference.SwitchPreference;
 
 import androidx.annotation.Nullable;
 
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import io.github.libxposed.service.XposedService;
@@ -72,12 +74,14 @@ public class SettingsActivity extends Activity {
             return true;
         }
 
-        public static List<ResolveInfo> queryApkInstallers(Context context) {
-            var intent = new Intent(Intent.ACTION_VIEW);
-            intent.setType(App.PACKAGE_MIME_TYPE);
+        public static List<ResolveInfo> queryApkInstallers(PackageManager packageManager) {
+            var intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+            intent.setDataAndType(
+                    Uri.parse("content://dummy.apk"),
+                    App.PACKAGE_MIME_TYPE
+            );
             intent.addCategory(Intent.CATEGORY_DEFAULT);
-            var pm = context.getPackageManager();
-            return pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
+            return packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
         }
 
         @Override
@@ -96,18 +100,26 @@ public class SettingsActivity extends Activity {
 
             }
             if (customNamePref != null) {
-                var apkInstallers = queryApkInstallers(getContext());
-                var entries = new String[apkInstallers.size() + 1];
-                var entryValues = new String[apkInstallers.size() + 1];
-                entries[0] = getString(R.string.package_installer_custom_package_name_default);
-                entryValues[0] = "";
-                for (int i = 0; i < apkInstallers.size(); i++) {
-                    var installer = apkInstallers.get(i);
-                    entries[i + 1] = installer.loadLabel(getContext().getPackageManager()).toString();
-                    entryValues[i + 1] = installer.activityInfo.packageName;
+                var pm = getContext().getPackageManager();
+                var apkInstallers = queryApkInstallers(pm);
+                var installerMap = new LinkedHashMap<String, CharSequence>();
+                var duplicatedPackages = new HashSet<String>();
+                installerMap.put("", getString(R.string.package_installer_custom_package_name_default));
+                for (var installer : apkInstallers) {
+                    var packageName = installer.activityInfo.packageName;
+                    var existing = installerMap.putIfAbsent(
+                            packageName,
+                            installer.activityInfo.applicationInfo.loadLabel(pm)
+                    );
+                    if (existing != null) {
+                        duplicatedPackages.add(packageName);
+                    }
                 }
-                customNamePref.setEntries(entries);
-                customNamePref.setEntryValues(entryValues);
+                // Remove any package that appears multiple times in query results.
+                // Otherwise, the system will crash because it cannot resolve the default package opening method.
+                duplicatedPackages.forEach(installerMap::remove);
+                customNamePref.setEntries(installerMap.values().toArray(new CharSequence[0]));
+                customNamePref.setEntryValues(installerMap.keySet().toArray(new CharSequence[0]));
                 customNamePref.setOnPreferenceChangeListener((preference, newValue)
                         -> pushRemoteConfig("package_installer_custom_package_name", newValue));
             }

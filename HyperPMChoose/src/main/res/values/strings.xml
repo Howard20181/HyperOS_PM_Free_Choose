@@ -2,7 +2,7 @@
     <string name="app_name">Package Manager Chooser Unlock</string>
     <string name="xposed_description">Use AOSP package installer on Xiaomi Hyper OS or MIUI. Lock default package installer to 3rd party installer, and unlock default market app.</string>
     <string name="package_installer_unlock_title">Change Package Installer</string>
-    <string name="package_installer_custom_package_name_title">Custom package installer package name</string>
+    <string name="package_installer_custom_package_name_title">Custom package installer</string>
     <string name="package_installer_custom_package_name_default">Default</string>
     <string name="unlock_choose_market_app_title">Unlock default market app</string>
 </resources>

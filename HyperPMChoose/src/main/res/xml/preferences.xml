@@ -17,6 +17,7 @@
         android:key="package_installer_custom_package_name"
         android:persistent="false"
         android:shouldDisableView="true"
+        android:summary="%s"
         android:title="@string/package_installer_custom_package_name_title" />
     <SwitchPreference
         android:defaultValue="false"
