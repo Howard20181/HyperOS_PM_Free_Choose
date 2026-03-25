@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">包管理选择器解锁</string>
+    <string name="xposed_description">在小米澎湃OS或 MIUI 上使用原生软件包安装器，锁定第三方安装器，解锁默认应用商店。</string>
+    <string name="package_installer_unlock_title">修改默认包安装器</string>
+    <string name="package_installer_custom_package_name_title">自定义包安装器</string>
+    <string name="package_installer_custom_package_name_default">默认</string>
+    <string name="unlock_choose_market_app_title">解锁默认应用商店</string>
+</resources>

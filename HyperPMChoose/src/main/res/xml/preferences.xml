@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <ListPreference
+        android:defaultValue="off"
+        android:enabled="false"
+        android:entries="@array/package_installer_unlock_entries"
+        android:entryValues="@array/package_installer_unlock_values"
+        android:key="package_installer_unlock"
+        android:persistent="false"
+        android:shouldDisableView="true"
+        android:summary="%s"
+        android:title="@string/package_installer_unlock_title" />
+    <ListPreference
+        android:defaultValue=""
+        android:dialogTitle="@string/package_installer_custom_package_name_title"
+        android:enabled="false"
+        android:key="package_installer_custom_package_name"
+        android:persistent="false"
+        android:shouldDisableView="true"
+        android:summary="%s"
+        android:title="@string/package_installer_custom_package_name_title" />
+    <SwitchPreference
+        android:defaultValue="false"
+        android:enabled="false"
+        android:key="unlock_choose_market_app"
+        android:persistent="false"
+        android:shouldDisableView="true"
+        android:title="@string/unlock_choose_market_app_title" />
+</PreferenceScreen>
