@@ -53,7 +53,7 @@ public class Hooker extends XposedModule {
         try {
             hookXSpaceConstant(classLoader);
         } catch (Throwable t) {
-            log(Log.ERROR, TAG, "Failed to hook SettingsImpl", t);
+            log(Log.ERROR, TAG, "Failed to hook XSpaceConstant", t);
         }
     }
 
