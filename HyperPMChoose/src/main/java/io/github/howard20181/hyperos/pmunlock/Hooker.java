@@ -50,11 +50,11 @@ public class Hooker extends XposedModule {
         } catch (Throwable t) {
             log(Log.ERROR, TAG, "Failed to hook PackageManagerServiceImpl", t);
         }
-//        try {
-//            hookSettingsImpl(classLoader);
-//        } catch (Throwable t) {
-//            log(Log.ERROR, TAG, "Failed to hook SettingsImpl", t);
-//        }
+        try {
+            hookXSpaceConstant(classLoader);
+        } catch (Throwable t) {
+            log(Log.ERROR, TAG, "Failed to hook SettingsImpl", t);
+        }
     }
 
     @Override
@@ -63,19 +63,22 @@ public class Hooker extends XposedModule {
         var pn = param.getPackageName();
         var classLoader = param.getClassLoader();
         if ("com.miui.securitycore".equals(pn)) {
-            try {
-                var XSpaceConstantClass = classLoader.loadClass("miui.securityspace.XSpaceConstant");
-                var requiredAppsField = XSpaceConstantClass.getDeclaredField("REQUIRED_APPS");
-                requiredAppsField.setAccessible(true);
-                var requiredApps = (ArrayList<String>) requiredAppsField.get(null);
-                if (requiredApps != null && !requiredApps.contains("com.android.packageinstaller")) {
-                    requiredApps.add("com.android.packageinstaller");
-                }
-            } catch (Exception e) {
-                log(Log.ERROR, TAG, "Failed to add package installer to REQUIRED_APPS", e);
-            }
+            hookXSpaceConstant(classLoader);
         }
+    }
 
+    private void hookXSpaceConstant(ClassLoader classLoader) {
+        try {
+            var XSpaceConstantClass = classLoader.loadClass("miui.securityspace.XSpaceConstant");
+            var requiredAppsField = XSpaceConstantClass.getDeclaredField("REQUIRED_APPS");
+            requiredAppsField.setAccessible(true);
+            var requiredApps = (ArrayList<String>) requiredAppsField.get(null);
+            if (requiredApps != null && !requiredApps.contains("com.android.packageinstaller")) {
+                requiredApps.add("com.android.packageinstaller");
+            }
+        } catch (Exception e) {
+            log(Log.ERROR, TAG, "Failed to add package installer to REQUIRED_APPS", e);
+        }
     }
 
     private void hookPackageManagerServiceImpl(ClassLoader classLoader) throws ClassNotFoundException {
@@ -94,30 +97,22 @@ public class Hooker extends XposedModule {
         for (var method : methods) {
             var name = method.getName();
             switch (name) {
-                case "updateDefaultPkgInstallerLocked" -> hook(method).intercept(chain -> {
-                    fakeCTS.set(true);
-                    try {
-                        return chain.proceed();
-                    } finally {
-                        fakeCTS.set(false);
+                case "updateDefaultPkgInstallerLocked" -> {
+                    hook(method).intercept(chain -> {
+                        fakeCTS.set(true);
                         if (finalFCurrentPackageInstaller != null && mCurrentPackageInstaller.get().isEmpty()
                                 && finalFCurrentPackageInstaller.get(chain.getThisObject()) instanceof String currentPackageInstaller) {
                             mCurrentPackageInstaller.compareAndSet("", currentPackageInstaller);
-                            try {
-                                var XSpaceConstantClass = classLoader.loadClass("miui.securityspace.XSpaceConstant");
-                                var requiredAppsField = XSpaceConstantClass.getDeclaredField("REQUIRED_APPS");
-                                requiredAppsField.setAccessible(true);
-                                var requiredApps = (ArrayList<String>) requiredAppsField.get(null);
-                                if (requiredApps != null && !requiredApps.contains(currentPackageInstaller)) {
-                                    requiredApps.add(currentPackageInstaller);
-                                }
-                            } catch (Exception e) {
-                                log(Log.ERROR, TAG, "Failed to add package installer to REQUIRED_APPS", e);
-                            }
                         }
-                    }
-                });
-                case "assertValidApkAndInstaller", "switchPackageInstaller" -> {
+                        try {
+                            return chain.proceed();
+                        } finally {
+                            fakeCTS.set(false);
+                        }
+                    });
+                    deoptimize(method);
+                }
+                case "assertValidApkAndInstaller" -> {
                     hook(method).intercept(chain -> {
                         fakeCTS.set(true);
                         try {
@@ -128,25 +123,6 @@ public class Hooker extends XposedModule {
                     });
                     deoptimize(method);
                 }
-                case "updateSystemAppState" -> {
-                    hook(method).intercept(chain -> {
-                        var args = chain.getArgs().toArray();
-                        args[1] = true;
-                        return chain.proceedWith(args);
-                    });
-                    deoptimize(method);
-                }
-//                case "protectAppFromDeleting" -> {
-//                    hook(method).intercept(chain -> {
-//                        var result = chain.proceed();
-//                        var packageName = (String) chain.getArg(0);
-//                        if (mCurrentPackageInstaller.get().equals(packageName)) {
-//                            return true;
-//                        }
-//                        return result;
-//                    });
-//                    deoptimize(method);
-//                }
                 case "hookChooseBestActivity" -> {
                     hook(method).intercept(chain -> {
                         try {
