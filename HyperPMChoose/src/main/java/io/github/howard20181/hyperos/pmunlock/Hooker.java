@@ -124,6 +124,7 @@ public class Hooker extends XposedModule {
                         }
                         return chain.proceed();
                     } finally {
+                        fakeCTS.set(false);
                         if ("custom".equals(replacePackageInstaller.get())
                                 && !mCurrentPackageInstaller.get().isEmpty()
                                 && chain.getArg(0) instanceof Intent intent) {
@@ -133,7 +134,6 @@ public class Hooker extends XposedModule {
                                 finalFCurrentPackageInstaller.set(chain.getThisObject(), mCurrentPackageInstaller.get());
                             }
                         }
-                        fakeCTS.set(false);
                     }
                 });
                 deoptimize(method);
